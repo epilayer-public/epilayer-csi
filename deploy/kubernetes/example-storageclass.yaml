@@ -1,0 +1,27 @@
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: sagadata-ssd
+provisioner: csi.sagadata.no
+parameters:
+  type: ssd
+allowVolumeExpansion: false
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
+mountOptions:
+  - discard
+
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: sagadata-hdd
+provisioner: csi.sagadata.no
+parameters:
+  type: hdd
+allowVolumeExpansion: false
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
+mountOptions:
+  - discard
