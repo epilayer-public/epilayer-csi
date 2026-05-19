@@ -30,6 +30,8 @@ kubectl create secret generic sagadata-csi \
   --from-literal=region=<region>
 ```
 
+> **Note:** The endpoint must include the `/compute/v1` path prefix (e.g. `https://…/compute/v1`). Omitting it causes all API calls to 404.
+
 2. Apply the manifests:
 
 ```bash
