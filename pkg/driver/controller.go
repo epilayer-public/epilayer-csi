@@ -145,25 +145,6 @@ func (d *Driver) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest)
 		return &csi.DeleteVolumeResponse{}, nil
 	}
 
-	for _, inst := range vol.Instances {
-		klog.Infof("DeleteVolume: detaching volume %q from instance %q before deletion", req.VolumeId, inst.Id)
-		var volumes sagadata.InstanceUpdateVolumes
-		if err := volumes.FromInstanceUpdateVolumesDetach(sagadata.InstanceUpdateVolumesDetach{
-			Detach: req.VolumeId,
-		}); err != nil {
-			return nil, status.Errorf(codes.Internal, "building detach request: %v", err)
-		}
-		detachResp, err := d.client.UpdateInstanceWithResponse(ctx, inst.Id, sagadata.UpdateInstanceJSONRequestBody{
-			Volumes: &volumes,
-		})
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "detaching volume %q from instance %q: %v", req.VolumeId, inst.Id, err)
-		}
-		if detachResp.JSON200 == nil {
-			return nil, status.Errorf(codes.Internal, "unexpected response detaching volume %q from instance %q: %s", req.VolumeId, inst.Id, detachResp.Status())
-		}
-	}
-
 	resp, err := d.client.DeleteVolumeWithResponse(ctx, req.VolumeId)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "deleting volume %q: %v", req.VolumeId, err)
@@ -199,9 +180,20 @@ func (d *Driver) ControllerPublishVolume(ctx context.Context, req *csi.Controlle
 		return nil, status.Errorf(codes.NotFound, "volume %q not found", req.VolumeId)
 	}
 
-	// Check if already attached to this node.
-	for _, inst := range vol.Instances {
-		if inst.Id == req.NodeId {
+	// Check attachment state from the instance side — vol.Instances is not
+	// populated by the API, so we query the instance directly.
+	instResp, err := d.client.GetInstanceWithResponse(ctx, req.NodeId)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "getting instance %q: %v", req.NodeId, err)
+	}
+	if instResp.StatusCode() == http.StatusNotFound {
+		return nil, status.Errorf(codes.NotFound, "instance %q not found", req.NodeId)
+	}
+	if instResp.JSON200 == nil {
+		return nil, status.Errorf(codes.Internal, "unexpected response getting instance %q: %s", req.NodeId, instResp.Status())
+	}
+	for _, v := range instResp.JSON200.Instance.Volumes {
+		if v.Id == req.VolumeId {
 			klog.Infof("ControllerPublishVolume: volume %q already attached to %q", req.VolumeId, req.NodeId)
 			return &csi.ControllerPublishVolumeResponse{
 				PublishContext: map[string]string{
@@ -209,11 +201,6 @@ func (d *Driver) ControllerPublishVolume(ctx context.Context, req *csi.Controlle
 				},
 			}, nil
 		}
-	}
-
-	// If attached to a different node, fail.
-	if len(vol.Instances) > 0 {
-		return nil, status.Errorf(codes.FailedPrecondition, "volume %q already attached to instance %q", req.VolumeId, vol.Instances[0].Id)
 	}
 
 	// Attach.
@@ -264,10 +251,23 @@ func (d *Driver) ControllerUnpublishVolume(ctx context.Context, req *csi.Control
 		return &csi.ControllerUnpublishVolumeResponse{}, nil
 	}
 
-	// Check if attached to this node.
+	// Check attachment state from the instance side — vol.Instances is not
+	// populated by the API, so we query the instance directly.
+	instResp, err := d.client.GetInstanceWithResponse(ctx, req.NodeId)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "getting instance %q: %v", req.NodeId, err)
+	}
+	if instResp.StatusCode() == http.StatusNotFound {
+		// Instance is gone; nothing to detach from.
+		klog.Infof("ControllerUnpublishVolume: instance %q not found, skipping detach", req.NodeId)
+		return &csi.ControllerUnpublishVolumeResponse{}, nil
+	}
+	if instResp.JSON200 == nil {
+		return nil, status.Errorf(codes.Internal, "unexpected response getting instance %q: %s", req.NodeId, instResp.Status())
+	}
 	attached := false
-	for _, inst := range vol.Instances {
-		if inst.Id == req.NodeId {
+	for _, v := range instResp.JSON200.Instance.Volumes {
+		if v.Id == req.VolumeId {
 			attached = true
 			break
 		}
