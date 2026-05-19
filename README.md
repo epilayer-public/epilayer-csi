@@ -27,7 +27,7 @@ kubectl create secret generic sagadata-csi \
   --namespace kube-system \
   --from-literal=token=<your-api-token> \
   --from-literal=endpoint=<api-endpoint> \
-  --from-literal=region=<region>
+  --from-literal=region=<REGION>  # uppercase, e.g. NORD-NO-KRS-1
 ```
 
 > **Note:** The endpoint must include the `/compute/v1` path prefix (e.g. `https://…/compute/v1`). Omitting it causes all API calls to 404.
@@ -98,7 +98,7 @@ spec:
 |-------------|--------------------------------|----------|
 | `ENDPOINT`  | Saga Data API endpoint URL     | Yes      |
 | `TOKEN_FILE`| Path to file containing token  | Yes      |
-| `REGION`    | Saga Data region identifier    | Yes      |
+| `REGION`    | Saga Data region identifier (uppercase, e.g. `NORD-NO-KRS-1`) | Yes |
 | `NODE_NAME` | Kubernetes node name (node mode)| Node only|
 
 ## Building
