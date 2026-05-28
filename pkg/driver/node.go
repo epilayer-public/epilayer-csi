@@ -223,7 +223,32 @@ func (d *Driver) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVolumeS
 }
 
 func (d *Driver) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "NodeExpandVolume not supported")
+	if req.VolumeId == "" {
+		return nil, status.Error(codes.InvalidArgument, "volume ID is required")
+	}
+	if req.VolumePath == "" {
+		return nil, status.Error(codes.InvalidArgument, "volume path is required")
+	}
+
+	vol, err := d.getVolume(ctx, req.VolumeId)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "getting volume: %v", err)
+	}
+	if vol == nil {
+		return nil, status.Errorf(codes.NotFound, "volume %q not found", req.VolumeId)
+	}
+
+	devicePath := GetDevicePath(vol.Name)
+	mounter := NewMounter()
+	if _, err := mounter.ResizeFS(devicePath, req.VolumePath); err != nil {
+		return nil, status.Errorf(codes.Internal, "resizing filesystem on %s: %v", devicePath, err)
+	}
+
+	klog.Infof("NodeExpandVolume: resized filesystem on %s (volume %q)", devicePath, req.VolumeId)
+
+	return &csi.NodeExpandVolumeResponse{
+		CapacityBytes: int64(vol.Size) * giB,
+	}, nil
 }
 
 func (d *Driver) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
@@ -240,6 +265,13 @@ func (d *Driver) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetCapabi
 				Type: &csi.NodeServiceCapability_Rpc{
 					Rpc: &csi.NodeServiceCapability_RPC{
 						Type: csi.NodeServiceCapability_RPC_GET_VOLUME_STATS,
+					},
+				},
+			},
+			{
+				Type: &csi.NodeServiceCapability_Rpc{
+					Rpc: &csi.NodeServiceCapability_RPC{
+						Type: csi.NodeServiceCapability_RPC_EXPAND_VOLUME,
 					},
 				},
 			},

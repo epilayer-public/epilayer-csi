@@ -388,6 +388,7 @@ func (d *Driver) ControllerGetCapabilities(ctx context.Context, req *csi.Control
 		csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
 		csi.ControllerServiceCapability_RPC_LIST_VOLUMES,
 		csi.ControllerServiceCapability_RPC_LIST_VOLUMES_PUBLISHED_NODES,
+		csi.ControllerServiceCapability_RPC_EXPAND_VOLUME,
 	}
 
 	var csiCaps []*csi.ControllerServiceCapability
@@ -421,7 +422,63 @@ func (d *Driver) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsReques
 }
 
 func (d *Driver) ControllerExpandVolume(ctx context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "ControllerExpandVolume not supported")
+	if req.VolumeId == "" {
+		return nil, status.Error(codes.InvalidArgument, "volume ID is required")
+	}
+
+	vol, err := d.getVolume(ctx, req.VolumeId)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "getting volume: %v", err)
+	}
+	if vol == nil {
+		return nil, status.Errorf(codes.NotFound, "volume %q not found", req.VolumeId)
+	}
+
+	var requestedBytes int64
+	if req.CapacityRange != nil {
+		requestedBytes = req.CapacityRange.RequiredBytes
+	}
+	newSizeGiB := roundUpGiB(requestedBytes)
+	if newSizeGiB < vol.Size {
+		newSizeGiB = vol.Size
+	}
+
+	if req.CapacityRange != nil && req.CapacityRange.LimitBytes > 0 {
+		limitGiB := int(req.CapacityRange.LimitBytes / giB)
+		if newSizeGiB > limitGiB {
+			return nil, status.Errorf(codes.OutOfRange, "requested size %d GiB exceeds limit %d GiB", newSizeGiB, limitGiB)
+		}
+	}
+
+	// Already large enough — idempotent.
+	if vol.Size >= newSizeGiB {
+		return &csi.ControllerExpandVolumeResponse{
+			CapacityBytes:         int64(vol.Size) * giB,
+			NodeExpansionRequired: true,
+		}, nil
+	}
+
+	updateResp, err := d.client.UpdateVolumeWithResponse(ctx, req.VolumeId, sagadata.UpdateVolumeJSONRequestBody{
+		Size: &newSizeGiB,
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "updating volume size: %v", err)
+	}
+	if updateResp.JSON200 == nil {
+		return nil, status.Errorf(codes.Internal, "unexpected response updating volume: %s", updateResp.Status())
+	}
+
+	vol, err = d.waitForVolumeStatus(ctx, req.VolumeId, sagadata.VolumeStatusCreated, 5*time.Minute)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "waiting for expanded volume to be ready: %v", err)
+	}
+
+	klog.Infof("ControllerExpandVolume: resized volume %q to %d GiB", req.VolumeId, vol.Size)
+
+	return &csi.ControllerExpandVolumeResponse{
+		CapacityBytes:         int64(vol.Size) * giB,
+		NodeExpansionRequired: true,
+	}, nil
 }
 
 func (d *Driver) ControllerGetVolume(ctx context.Context, req *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {
