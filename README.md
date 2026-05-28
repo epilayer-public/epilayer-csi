@@ -10,6 +10,16 @@ A [Container Storage Interface](https://github.com/container-storage-interface/s
 - Idempotent create/delete/attach/detach operations
 - Topology-aware provisioning (region)
 
+## Limitations
+
+- **`ReadWriteOnce` only.** Saga Data block volumes are single-attach; a volume can be mounted by exactly one node at a time. `ReadWriteMany` (RWX), `ReadOnlyMany` (ROX), and `ReadWriteOncePod` are not supported. A PVC created with any of these access modes will remain stuck in `Pending` with a `ProvisioningFailed` event:
+  ```
+  unsupported access mode: MULTI_NODE_MULTI_WRITER
+  ```
+  Multiple pods on the **same node** sharing a `ReadWriteOnce` volume is fine — they receive individual bind-mounts from the shared staging mount.
+
+- **No snapshots.** `CreateSnapshot` / `DeleteSnapshot` are not implemented.
+
 ## Installation
 
 ### Prerequisites
