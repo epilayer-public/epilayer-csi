@@ -9,13 +9,13 @@ import (
 	"os"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	sagadata "github.com/sagadata-public/sagadata-go"
+	epilayer "github.com/epilayer-public/epilayer-go"
 	"google.golang.org/grpc"
 	"k8s.io/klog/v2"
 )
 
 const (
-	DriverName = "csi.sagadata.no"
+	DriverName = "csi.epilayer.eu"
 )
 
 // Mode is the operating mode of the driver.
@@ -33,7 +33,7 @@ type Config struct {
 	Mode     Mode
 	Version  string
 
-	// Saga Data API
+	// EpiLayer API
 	APIEndpoint string
 	TokenFile   string
 	Region      string
@@ -42,14 +42,14 @@ type Config struct {
 	NodeName string
 }
 
-// Driver implements the CSI spec for Saga Data volumes.
+// Driver implements the CSI spec for EpiLayer volumes.
 type Driver struct {
 	csi.UnimplementedIdentityServer
 	csi.UnimplementedControllerServer
 	csi.UnimplementedNodeServer
 
 	config *Config
-	client *sagadata.ClientWithResponses
+	client *epilayer.ClientWithResponses
 	srv    *grpc.Server
 
 	// Node identity, resolved once on startup in node mode.
@@ -58,12 +58,12 @@ type Driver struct {
 
 // NewDriver creates a new CSI driver.
 func NewDriver(cfg *Config) (*Driver, error) {
-	client, err := sagadata.NewSagaDataClient(sagadata.ClientConfig{
+	client, err := epilayer.NewEpiLayerClient(epilayer.ClientConfig{
 		Endpoint:  cfg.APIEndpoint,
 		TokenFile: cfg.TokenFile,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("creating sagadata client: %w", err)
+		return nil, fmt.Errorf("creating epilayer client: %w", err)
 	}
 
 	return &Driver{
@@ -129,7 +129,7 @@ func (d *Driver) Run(ctx context.Context) error {
 	return d.srv.Serve(listener)
 }
 
-// resolveNodeID queries the Saga Data API to find the instance ID for this node.
+// resolveNodeID queries the EpiLayer API to find the instance ID for this node.
 func (d *Driver) resolveNodeID(ctx context.Context) error {
 	if d.config.NodeName == "" {
 		return fmt.Errorf("NODE_NAME is required in node mode")
@@ -147,10 +147,10 @@ func (d *Driver) resolveNodeID(ctx context.Context) error {
 
 // instanceByNodeName finds an instance by matching hostname or name.
 // Mirrors the CCM's approach.
-func (d *Driver) instanceByNodeName(ctx context.Context, nodeName string) (*sagadata.Instance, error) {
+func (d *Driver) instanceByNodeName(ctx context.Context, nodeName string) (*epilayer.Instance, error) {
 	page := 1
 	for {
-		resp, err := d.client.ListInstancesPaginatedWithResponse(ctx, &sagadata.ListInstancesPaginatedParams{
+		resp, err := d.client.ListInstancesPaginatedWithResponse(ctx, &epilayer.ListInstancesPaginatedParams{
 			Page: &page,
 		})
 		if err != nil {
@@ -174,10 +174,10 @@ func (d *Driver) instanceByNodeName(ctx context.Context, nodeName string) (*saga
 }
 
 // getVolumeByName finds a volume by name (used for idempotent CreateVolume).
-func (d *Driver) getVolumeByName(ctx context.Context, name string) (*sagadata.Volume, error) {
+func (d *Driver) getVolumeByName(ctx context.Context, name string) (*epilayer.Volume, error) {
 	page := 1
 	for {
-		resp, err := d.client.ListVolumesPaginatedWithResponse(ctx, &sagadata.ListVolumesPaginatedParams{
+		resp, err := d.client.ListVolumesPaginatedWithResponse(ctx, &epilayer.ListVolumesPaginatedParams{
 			Page: &page,
 		})
 		if err != nil {
@@ -201,7 +201,7 @@ func (d *Driver) getVolumeByName(ctx context.Context, name string) (*sagadata.Vo
 }
 
 // getVolume fetches a volume by ID. Returns nil if not found.
-func (d *Driver) getVolume(ctx context.Context, volumeID string) (*sagadata.Volume, error) {
+func (d *Driver) getVolume(ctx context.Context, volumeID string) (*epilayer.Volume, error) {
 	resp, err := d.client.GetVolumeWithResponse(ctx, volumeID)
 	if err != nil {
 		return nil, fmt.Errorf("getting volume %q: %w", volumeID, err)

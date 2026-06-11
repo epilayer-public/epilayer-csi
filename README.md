@@ -1,6 +1,6 @@
-# Saga Data CSI Driver
+# EpiLayer CSI Driver
 
-A [Container Storage Interface](https://github.com/container-storage-interface/spec) driver for [Saga Data](https://sagadata.no) cloud block storage, enabling dynamic provisioning of persistent volumes in Kubernetes.
+A [Container Storage Interface](https://github.com/container-storage-interface/spec) driver for [EpiLayer](https://epilayer.eu) cloud block storage, enabling dynamic provisioning of persistent volumes in Kubernetes.
 
 ## Features
 
@@ -12,7 +12,7 @@ A [Container Storage Interface](https://github.com/container-storage-interface/s
 
 ## Limitations
 
-- **`ReadWriteOnce` only.** Saga Data block volumes are single-attach; a volume can be mounted by exactly one node at a time. `ReadWriteMany` (RWX), `ReadOnlyMany` (ROX), and `ReadWriteOncePod` are not supported. A PVC created with any of these access modes will remain stuck in `Pending` with a `ProvisioningFailed` event:
+- **`ReadWriteOnce` only.** EpiLayer block volumes are single-attach; a volume can be mounted by exactly one node at a time. `ReadWriteMany` (RWX), `ReadOnlyMany` (ROX), and `ReadWriteOncePod` are not supported. A PVC created with any of these access modes will remain stuck in `Pending` with a `ProvisioningFailed` event:
   ```
   unsupported access mode: MULTI_NODE_MULTI_WRITER
   ```
@@ -24,16 +24,16 @@ A [Container Storage Interface](https://github.com/container-storage-interface/s
 
 ### Prerequisites
 
-- Kubernetes cluster running on Saga Data Cloud
-- Saga Data API token
-- The [Saga Data Cloud Controller Manager](https://github.com/sagadata-public/sagadata-cloud-controller-manager) configured and running
+- Kubernetes cluster running on EpiLayer Cloud
+- EpiLayer API token
+- The [EpiLayer Cloud Controller Manager](https://github.com/epilayer-public/epilayer-cloud-controller-manager) configured and running
 
 ### Deploy
 
 1. Create a secret with your API credentials:
 
 ```bash
-kubectl create secret generic sagadata-csi \
+kubectl create secret generic epilayer-csi \
   --namespace kube-system \
   --from-literal=token=<your-api-token> \
   --from-literal=endpoint=<api-endpoint> \
@@ -68,7 +68,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: sagadata-ssd
+  storageClassName: epilayer-ssd
   resources:
     requests:
       storage: 10Gi
@@ -106,21 +106,21 @@ spec:
 
 | Variable     | Description                    | Required |
 |-------------|--------------------------------|----------|
-| `ENDPOINT`  | Saga Data API endpoint URL     | Yes      |
+| `ENDPOINT`  | EpiLayer API endpoint URL     | Yes      |
 | `TOKEN_FILE`| Path to file containing token  | Yes      |
-| `REGION`    | Saga Data region identifier (uppercase, e.g. `NORD-NO-KRS-1`) | Yes |
+| `REGION`    | EpiLayer region identifier (uppercase, e.g. `NORD-NO-KRS-1`) | Yes |
 | `NODE_NAME` | Kubernetes node name (node mode)| Node only|
 
 ## Building
 
 ```bash
-CGO_ENABLED=0 go build -o sagadata-csi ./cmd/sagadata-csi
+CGO_ENABLED=0 go build -o epilayer-csi ./cmd/epilayer-csi
 ```
 
 Docker:
 
 ```bash
-docker build -t sagadata-csi .
+docker build -t epilayer-csi .
 ```
 
 ## License

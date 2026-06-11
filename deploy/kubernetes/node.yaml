@@ -2,14 +2,14 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: sagadata-csi-node
+  name: epilayer-csi-node
   namespace: kube-system
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: sagadata-csi-node
+  name: epilayer-csi-node
 rules:
   - apiGroups: [""]
     resources: [events]
@@ -19,36 +19,36 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: sagadata-csi-node
+  name: epilayer-csi-node
 subjects:
   - kind: ServiceAccount
-    name: sagadata-csi-node
+    name: epilayer-csi-node
     namespace: kube-system
 roleRef:
   kind: ClusterRole
-  name: sagadata-csi-node
+  name: epilayer-csi-node
   apiGroup: rbac.authorization.k8s.io
 
 ---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: sagadata-csi-node
+  name: epilayer-csi-node
   namespace: kube-system
 spec:
   selector:
     matchLabels:
-      app: sagadata-csi-node
+      app: epilayer-csi-node
   template:
     metadata:
       labels:
-        app: sagadata-csi-node
+        app: epilayer-csi-node
     spec:
-      serviceAccountName: sagadata-csi-node
+      serviceAccountName: epilayer-csi-node
       priorityClassName: system-node-critical
       containers:
-        - name: sagadata-csi
-          image: ghcr.io/sagadata-public/sagadata-csi:latest
+        - name: epilayer-csi
+          image: ghcr.io/epilayer-public/epilayer-csi:latest
           args:
             - --endpoint=unix:///csi/csi.sock
             - --mode=node
@@ -57,14 +57,14 @@ spec:
             - name: ENDPOINT
               valueFrom:
                 secretKeyRef:
-                  name: sagadata-csi
+                  name: epilayer-csi
                   key: endpoint
             - name: TOKEN_FILE
-              value: /etc/sagadata/token
+              value: /etc/epilayer/token
             - name: REGION
               valueFrom:
                 secretKeyRef:
-                  name: sagadata-csi
+                  name: epilayer-csi
                   key: region
             - name: NODE_NAME
               valueFrom:
@@ -76,7 +76,7 @@ spec:
             - name: socket-dir
               mountPath: /csi
             - name: token
-              mountPath: /etc/sagadata
+              mountPath: /etc/epilayer
               readOnly: true
             - name: kubelet-dir
               mountPath: /var/lib/kubelet
@@ -90,7 +90,7 @@ spec:
           image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.12.0
           args:
             - --csi-address=/csi/csi.sock
-            - --kubelet-registration-path=/var/lib/kubelet/plugins/csi.sagadata.no/csi.sock
+            - --kubelet-registration-path=/var/lib/kubelet/plugins/csi.epilayer.eu/csi.sock
             - --v=4
           volumeMounts:
             - name: socket-dir
@@ -101,7 +101,7 @@ spec:
       volumes:
         - name: socket-dir
           hostPath:
-            path: /var/lib/kubelet/plugins/csi.sagadata.no
+            path: /var/lib/kubelet/plugins/csi.epilayer.eu
             type: DirectoryOrCreate
         - name: registration-dir
           hostPath:
@@ -121,7 +121,7 @@ spec:
             type: Directory
         - name: token
           secret:
-            secretName: sagadata-csi
+            secretName: epilayer-csi
             items:
               - key: token
                 path: token

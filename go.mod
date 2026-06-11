@@ -1,10 +1,10 @@
-module github.com/sagadata-public/sagadata-csi
+module github.com/epilayer-public/epilayer-csi
 
 go 1.25.5
 
 require (
 	github.com/container-storage-interface/spec v1.12.0
-	github.com/sagadata-public/sagadata-go v1.3.0
+	github.com/epilayer-public/epilayer-go v1.6.0
 	golang.org/x/sys v0.41.0
 	google.golang.org/grpc v1.79.1
 	k8s.io/klog/v2 v2.130.1

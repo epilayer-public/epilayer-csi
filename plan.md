@@ -1,8 +1,8 @@
-# Saga Data CSI Driver — Implementation Plan
+# EpiLayer CSI Driver — Implementation Plan
 
 ## Overview
 
-A Kubernetes CSI (Container Storage Interface) driver for Saga Data Cloud that
+A Kubernetes CSI (Container Storage Interface) driver for EpiLayer Cloud that
 provisions block volumes (HDD/SSD), attaches them to instances, and
 formats/mounts them into pods. Ships as a single Go binary running in two
 modes: **controller** (Deployment) and **node** (DaemonSet).
@@ -28,7 +28,7 @@ modes: **controller** (Deployment) and **node** (DaemonSet).
 │  ┌──────────────────────────────────────────────────┐  (per node)    │
 │  │  Node DaemonSet                                   │                │
 │  │  ┌──────────────────┐  ┌─────────────────────┐    │                │
-│  │  │ node-driver-     │  │ sagadata-csi         │    │                │
+│  │  │ node-driver-     │  │ epilayer-csi         │    │                │
 │  │  │ registrar        │  │ --mode=node          │    │                │
 │  │  │  (sidecar)       │  │                      │    │                │
 │  │  └──────┬───────────┘  └──────────┬───────────┘    │                │
@@ -36,7 +36,7 @@ modes: **controller** (Deployment) and **node** (DaemonSet).
 │  │         └─────────────────────────┘               │                │
 │  └───────────────────────────────────────────────────┘                │
 │                                                                      │
-│                        ▼  Saga Data API  ▼                           │
+│                        ▼  EpiLayer API  ▼                           │
 │             ┌─────────────────────────────────┐                      │
 │             │  Volume Create / Delete          │                      │
 │             │  Instance Attach / Detach        │                      │
@@ -98,8 +98,8 @@ Example:
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: sagadata-ssd
-provisioner: csi.sagadata.no
+  name: epilayer-ssd
+provisioner: csi.epilayer.eu
 parameters:
   type: ssd
 allowVolumeExpansion: false   # future
@@ -108,12 +108,12 @@ volumeBindingMode: WaitForFirstConsumer
 
 ## Node Identity
 
-The node plugin must know its own Saga Data instance ID to report in
+The node plugin must know its own EpiLayer instance ID to report in
 `NodeGetInfo` (so the controller can attach volumes to the right instance).
 
 Strategy:
 1. `NODE_NAME` env var injected via Kubernetes downward API
-2. On startup, query Saga Data API: find instance where
+2. On startup, query EpiLayer API: find instance where
    `hostname == NODE_NAME || name == NODE_NAME`
 3. Cache the instance ID for the lifetime of the process
 
@@ -122,9 +122,9 @@ This mirrors the approach used by the CCM's `instanceByNodeName`.
 ## Directory Structure
 
 ```
-sagadata-csi/
+epilayer-csi/
 ├── cmd/
-│   └── sagadata-csi/
+│   └── epilayer-csi/
 │       └── main.go                 # Entrypoint: parse flags, start gRPC
 ├── pkg/
 │   └── driver/
@@ -151,14 +151,14 @@ sagadata-csi/
 
 ### Phase 1: Project Skeleton
 
-Files: `go.mod`, `cmd/sagadata-csi/main.go`, `pkg/driver/driver.go`
+Files: `go.mod`, `cmd/epilayer-csi/main.go`, `pkg/driver/driver.go`
 
-- Initialize Go module `github.com/sagadata-public/sagadata-csi`
-- Depend on `github.com/sagadata-public/sagadata-go`,
+- Initialize Go module `github.com/epilayer-public/epilayer-csi`
+- Depend on `github.com/epilayer-public/epilayer-go`,
   `github.com/container-storage-interface/spec`,
   `google.golang.org/grpc`, `k8s.io/mount-utils`, `k8s.io/klog/v2`
 - `main.go`: parse flags (`--endpoint`, `--mode`, `--node-name`), env vars
-  (`ENDPOINT`, `TOKEN_FILE`, `REGION`), create Saga Data client, start driver
+  (`ENDPOINT`, `TOKEN_FILE`, `REGION`), create EpiLayer client, start driver
 - `driver.go`: `Driver` struct holding config + client + gRPC server;
   `Run()` listens on the CSI socket and registers the appropriate services
   based on mode
@@ -167,7 +167,7 @@ Files: `go.mod`, `cmd/sagadata-csi/main.go`, `pkg/driver/driver.go`
 
 File: `pkg/driver/identity.go`
 
-- `GetPluginInfo` → name=`csi.sagadata.no`, version from build-time ldflags
+- `GetPluginInfo` → name=`csi.epilayer.eu`, version from build-time ldflags
 - `GetPluginCapabilities` → `CONTROLLER_SERVICE`
 - `Probe` → always ready (optionally ping the API)
 
@@ -197,7 +197,7 @@ Files: `pkg/driver/node.go`, `pkg/driver/mounter.go`
 - **mounter.go**: thin wrappers around `k8s.io/mount-utils` and
   `os/exec` for `blkid`, `mkfs.ext4`, `mkfs.xfs`, mount, unmount.
 - **NodeGetInfo**: return cached instance ID as node ID,
-  topology `topology.csi.sagadata.no/region=<region>`.
+  topology `topology.csi.epilayer.eu/region=<region>`.
 - **NodeStageVolume**: resolve device at `/dev/disk/by-id/virtio-<vol-name>`,
   wait for device to appear (attach may still be propagating), detect
   existing filesystem with `blkid`. If none, format with requested fsType
@@ -225,7 +225,7 @@ Files: `Dockerfile`, `deploy/kubernetes/*.yaml`
 
 ### Phase 6: Validation
 
-- Deploy to a Saga Data Kubernetes cluster
+- Deploy to a EpiLayer Kubernetes cluster
 - Create a PVC, verify volume appears in API
 - Create a pod using the PVC, verify mount
 - Delete the pod, verify unmount
