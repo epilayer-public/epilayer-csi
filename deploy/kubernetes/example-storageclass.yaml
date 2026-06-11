@@ -2,8 +2,8 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: sagadata-ssd
-provisioner: csi.sagadata.no
+  name: epilayer-ssd
+provisioner: csi.epilayer.eu
 parameters:
   type: ssd
 allowVolumeExpansion: false
@@ -16,8 +16,8 @@ mountOptions:
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: sagadata-hdd
-provisioner: csi.sagadata.no
+  name: epilayer-hdd
+provisioner: csi.epilayer.eu
 parameters:
   type: hdd
 allowVolumeExpansion: false

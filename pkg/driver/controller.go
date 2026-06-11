@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	sagadata "github.com/sagadata-public/sagadata-go"
+	epilayer "github.com/epilayer-public/epilayer-go"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
@@ -24,7 +24,7 @@ const (
 	giB = 1 << 30
 	tiB = 1 << 40
 
-	topologyRegionKey = "topology.csi.sagadata.no/region"
+	topologyRegionKey = "topology.csi.epilayer.eu/region"
 
 	// maxVirtioSerial is the maximum length of a virtio serial number,
 	// which determines the volume name visible at /dev/disk/by-id/virtio-<name>.
@@ -100,12 +100,12 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 	}
 
 	// Create the volume.
-	vt := sagadata.VolumeType(volType)
+	vt := epilayer.VolumeType(volType)
 	desc := fmt.Sprintf("csi:%s", req.Name)
-	createResp, err := d.client.CreateVolumeWithResponse(ctx, sagadata.CreateVolumeJSONRequestBody{
+	createResp, err := d.client.CreateVolumeWithResponse(ctx, epilayer.CreateVolumeJSONRequestBody{
 		Name:        volName,
 		Description: &desc,
-		Region:      sagadata.Region(d.config.Region),
+		Region:      epilayer.Region(d.config.Region),
 		Size:        sizeGiB,
 		Type:        &vt,
 	})
@@ -120,7 +120,7 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 	klog.Infof("CreateVolume: created volume %q (id=%s, size=%dGiB, type=%s)", vol.Name, vol.Id, vol.Size, vol.Type)
 
 	// Wait for volume to become ready.
-	vol, err = d.waitForVolumeStatus(ctx, vol.Id, sagadata.VolumeStatusCreated, 2*time.Minute)
+	vol, err = d.waitForVolumeStatus(ctx, vol.Id, epilayer.VolumeStatusCreated, 2*time.Minute)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "waiting for volume to be ready: %v", err)
 	}
@@ -204,14 +204,14 @@ func (d *Driver) ControllerPublishVolume(ctx context.Context, req *csi.Controlle
 	}
 
 	// Attach.
-	var volumes sagadata.InstanceUpdateVolumes
-	if err := volumes.FromInstanceUpdateVolumesAttach(sagadata.InstanceUpdateVolumesAttach{
+	var volumes epilayer.InstanceUpdateVolumes
+	if err := volumes.FromInstanceUpdateVolumesAttach(epilayer.InstanceUpdateVolumesAttach{
 		Attach: req.VolumeId,
 	}); err != nil {
 		return nil, status.Errorf(codes.Internal, "building attach request: %v", err)
 	}
 
-	updateResp, err := d.client.UpdateInstanceWithResponse(ctx, req.NodeId, sagadata.UpdateInstanceJSONRequestBody{
+	updateResp, err := d.client.UpdateInstanceWithResponse(ctx, req.NodeId, epilayer.UpdateInstanceJSONRequestBody{
 		Volumes: &volumes,
 	})
 	if err != nil {
@@ -278,14 +278,14 @@ func (d *Driver) ControllerUnpublishVolume(ctx context.Context, req *csi.Control
 	}
 
 	// Detach.
-	var volumes sagadata.InstanceUpdateVolumes
-	if err := volumes.FromInstanceUpdateVolumesDetach(sagadata.InstanceUpdateVolumesDetach{
+	var volumes epilayer.InstanceUpdateVolumes
+	if err := volumes.FromInstanceUpdateVolumesDetach(epilayer.InstanceUpdateVolumesDetach{
 		Detach: req.VolumeId,
 	}); err != nil {
 		return nil, status.Errorf(codes.Internal, "building detach request: %v", err)
 	}
 
-	updateResp, err := d.client.UpdateInstanceWithResponse(ctx, req.NodeId, sagadata.UpdateInstanceJSONRequestBody{
+	updateResp, err := d.client.UpdateInstanceWithResponse(ctx, req.NodeId, epilayer.UpdateInstanceJSONRequestBody{
 		Volumes: &volumes,
 	})
 	if err != nil {
@@ -345,7 +345,7 @@ func (d *Driver) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (
 		perPage = 100
 	}
 
-	resp, err := d.client.ListVolumesPaginatedWithResponse(ctx, &sagadata.ListVolumesPaginatedParams{
+	resp, err := d.client.ListVolumesPaginatedWithResponse(ctx, &epilayer.ListVolumesPaginatedParams{
 		Page:    &page,
 		PerPage: &perPage,
 	})
@@ -458,7 +458,7 @@ func (d *Driver) ControllerExpandVolume(ctx context.Context, req *csi.Controller
 		}, nil
 	}
 
-	updateResp, err := d.client.UpdateVolumeWithResponse(ctx, req.VolumeId, sagadata.UpdateVolumeJSONRequestBody{
+	updateResp, err := d.client.UpdateVolumeWithResponse(ctx, req.VolumeId, epilayer.UpdateVolumeJSONRequestBody{
 		Size: &newSizeGiB,
 	})
 	if err != nil {
@@ -468,7 +468,7 @@ func (d *Driver) ControllerExpandVolume(ctx context.Context, req *csi.Controller
 		return nil, status.Errorf(codes.Internal, "unexpected response updating volume: %s", updateResp.Status())
 	}
 
-	vol, err = d.waitForVolumeStatus(ctx, req.VolumeId, sagadata.VolumeStatusCreated, 5*time.Minute)
+	vol, err = d.waitForVolumeStatus(ctx, req.VolumeId, epilayer.VolumeStatusCreated, 5*time.Minute)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "waiting for expanded volume to be ready: %v", err)
 	}
@@ -507,7 +507,7 @@ func (d *Driver) GetVolumeGroupSnapshot(ctx context.Context, req *csi.GetVolumeG
 
 // Helpers.
 
-func volumeToCSI(vol *sagadata.Volume, region string) *csi.Volume {
+func volumeToCSI(vol *epilayer.Volume, region string) *csi.Volume {
 	return &csi.Volume{
 		VolumeId:      vol.Id,
 		CapacityBytes: int64(vol.Size) * giB,
@@ -535,7 +535,7 @@ func shortVolumeName(pvName string) string {
 	return volumeNamePrefix + hashHex[:maxHash]
 }
 
-func (d *Driver) waitForVolumeStatus(ctx context.Context, volumeID string, target sagadata.VolumeStatus, timeout time.Duration) (*sagadata.Volume, error) {
+func (d *Driver) waitForVolumeStatus(ctx context.Context, volumeID string, target epilayer.VolumeStatus, timeout time.Duration) (*epilayer.Volume, error) {
 	deadline := time.Now().Add(timeout)
 	for {
 		vol, err := d.getVolume(ctx, volumeID)
@@ -548,7 +548,7 @@ func (d *Driver) waitForVolumeStatus(ctx context.Context, volumeID string, targe
 		if vol.Status == target {
 			return vol, nil
 		}
-		if vol.Status == sagadata.VolumeStatusError {
+		if vol.Status == epilayer.VolumeStatusError {
 			return nil, fmt.Errorf("volume %q entered error state", volumeID)
 		}
 		if time.Now().After(deadline) {
