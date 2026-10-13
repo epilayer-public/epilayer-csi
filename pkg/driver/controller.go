@@ -24,8 +24,6 @@ const (
 	giB = 1 << 30
 	tiB = 1 << 40
 
-	topologyRegionKey = "topology.csi.epilayer.eu/region"
-
 	// maxVirtioSerial is the maximum length of a virtio serial number,
 	// which determines the volume name visible at /dev/disk/by-id/virtio-<name>.
 	maxVirtioSerial = 20
@@ -95,7 +93,7 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 		}
 		klog.Infof("CreateVolume: volume %q already exists as %s", volName, existing.Id)
 		return &csi.CreateVolumeResponse{
-			Volume: volumeToCSI(existing, d.config.Region),
+			Volume: d.volumeToCSI(existing),
 		}, nil
 	}
 
@@ -126,7 +124,7 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 	}
 
 	return &csi.CreateVolumeResponse{
-		Volume: volumeToCSI(vol, d.config.Region),
+		Volume: d.volumeToCSI(vol),
 	}, nil
 }
 
@@ -364,7 +362,7 @@ func (d *Driver) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (
 			publishedNodeIDs = append(publishedNodeIDs, inst.Id)
 		}
 		entries = append(entries, &csi.ListVolumesResponse_Entry{
-			Volume: volumeToCSI(vol, d.config.Region),
+			Volume: d.volumeToCSI(vol),
 			Status: &csi.ListVolumesResponse_VolumeStatus{
 				PublishedNodeIds: publishedNodeIDs,
 			},
@@ -507,14 +505,14 @@ func (d *Driver) GetVolumeGroupSnapshot(ctx context.Context, req *csi.GetVolumeG
 
 // Helpers.
 
-func volumeToCSI(vol *epilayer.Volume, region string) *csi.Volume {
+func (d *Driver) volumeToCSI(vol *epilayer.Volume) *csi.Volume {
 	return &csi.Volume{
 		VolumeId:      vol.Id,
 		CapacityBytes: int64(vol.Size) * giB,
 		AccessibleTopology: []*csi.Topology{
 			{
 				Segments: map[string]string{
-					topologyRegionKey: region,
+					d.topologyRegionKey(): d.config.Region,
 				},
 			},
 		},
