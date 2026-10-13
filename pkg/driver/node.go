@@ -284,7 +284,7 @@ func (d *Driver) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (
 		NodeId: d.nodeID,
 		AccessibleTopology: &csi.Topology{
 			Segments: map[string]string{
-				topologyRegionKey: d.config.Region,
+				d.topologyRegionKey(): d.config.Region,
 			},
 		},
 	}, nil

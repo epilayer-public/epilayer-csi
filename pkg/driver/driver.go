@@ -15,7 +15,10 @@ import (
 )
 
 const (
-	DriverName = "csi.epilayer.eu"
+	// DefaultDriverName is the CSI driver name used unless overridden.
+	// Drivers installed before the rename registered as csi.sagadata.no;
+	// existing PVs keep that name in spec.csi.driver, which is immutable.
+	DefaultDriverName = "csi.epilayer.eu"
 )
 
 // Mode is the operating mode of the driver.
@@ -32,6 +35,10 @@ type Config struct {
 	Endpoint string // CSI gRPC socket path (e.g. unix:///csi/csi.sock)
 	Mode     Mode
 	Version  string
+
+	// DriverName is the name the driver registers under. It also determines
+	// the topology key (topology.<DriverName>/region).
+	DriverName string
 
 	// EpiLayer API
 	APIEndpoint string
@@ -117,7 +124,7 @@ func (d *Driver) Run(ctx context.Context) error {
 		}
 	}
 
-	klog.Infof("starting %s %s in %s mode on %s", DriverName, d.config.Version, d.config.Mode, d.config.Endpoint)
+	klog.Infof("starting %s %s in %s mode on %s", d.config.DriverName, d.config.Version, d.config.Mode, d.config.Endpoint)
 
 	// Shutdown on context cancellation.
 	go func() {
@@ -127,6 +134,11 @@ func (d *Driver) Run(ctx context.Context) error {
 	}()
 
 	return d.srv.Serve(listener)
+}
+
+// topologyRegionKey returns the topology segment key for the region.
+func (d *Driver) topologyRegionKey() string {
+	return "topology." + d.config.DriverName + "/region"
 }
 
 // resolveNodeID queries the EpiLayer API to find the instance ID for this node.

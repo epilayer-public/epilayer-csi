@@ -111,6 +111,24 @@ spec:
 | `REGION`    | EpiLayer region identifier (uppercase, e.g. `NORD-NO-KRS-1`) | Yes |
 | `NODE_NAME` | Kubernetes node name (node mode)| Node only|
 
+### Flags
+
+| Flag            | Default           | Description |
+|-----------------|-------------------|-------------|
+| `--endpoint`    | `unix:///csi/csi.sock` | CSI gRPC endpoint |
+| `--mode`        | `all`             | `controller`, `node`, or `all` |
+| `--node-name`   |                   | Kubernetes node name (overrides `NODE_NAME`) |
+| `--driver-name` | `csi.epilayer.eu` | CSI driver name; also sets the topology key `topology.<driver-name>/region` |
+
+## Upgrading installations from before the rename
+
+Drivers installed before the rename to EpiLayer (image `ghcr.io/sagadata-public/sagadata-csi`) registered as `csi.sagadata.no`. Existing PersistentVolumes keep that name in `spec.csi.driver` and their node affinity uses `topology.csi.sagadata.no/region`; both fields are immutable. To keep those volumes working with the current image, keep the existing manifests and change only:
+
+- the image of the controller and node containers to `ghcr.io/epilayer-public/epilayer-csi:<version>`
+- add `--driver-name=csi.sagadata.no` to the args of both driver containers
+
+Leave the `CSIDriver` object, StorageClasses, `--kubelet-registration-path` and the plugin hostPath (`/var/lib/kubelet/plugins/csi.sagadata.no`) unchanged.
+
 ## Building
 
 ```bash

@@ -8,7 +8,7 @@ import (
 
 func (d *Driver) GetPluginInfo(ctx context.Context, req *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
 	return &csi.GetPluginInfoResponse{
-		Name:          DriverName,
+		Name:          d.config.DriverName,
 		VendorVersion: d.config.Version,
 	}, nil
 }

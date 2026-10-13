@@ -18,9 +18,10 @@ func main() {
 	klog.InitFlags(nil)
 
 	var (
-		endpoint = flag.String("endpoint", "unix:///csi/csi.sock", "CSI gRPC endpoint")
-		mode     = flag.String("mode", "all", "Driver mode: controller, node, or all")
-		nodeName = flag.String("node-name", "", "Kubernetes node name (node mode only, overrides NODE_NAME env)")
+		endpoint   = flag.String("endpoint", "unix:///csi/csi.sock", "CSI gRPC endpoint")
+		mode       = flag.String("mode", "all", "Driver mode: controller, node, or all")
+		nodeName   = flag.String("node-name", "", "Kubernetes node name (node mode only, overrides NODE_NAME env)")
+		driverName = flag.String("driver-name", driver.DefaultDriverName, "CSI driver name; set to csi.sagadata.no for clusters installed before the rename")
 	)
 	flag.Parse()
 
@@ -55,6 +56,7 @@ func main() {
 		Endpoint:    *endpoint,
 		Mode:        m,
 		Version:     version,
+		DriverName:  *driverName,
 		APIEndpoint: apiEndpoint,
 		TokenFile:   tokenFile,
 		Region:      region,
