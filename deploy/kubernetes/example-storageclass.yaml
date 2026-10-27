@@ -6,7 +6,7 @@ metadata:
 provisioner: csi.epilayer.eu
 parameters:
   type: ssd
-allowVolumeExpansion: false
+allowVolumeExpansion: true
 volumeBindingMode: WaitForFirstConsumer
 reclaimPolicy: Delete
 mountOptions:
@@ -20,7 +20,7 @@ metadata:
 provisioner: csi.epilayer.eu
 parameters:
   type: hdd
-allowVolumeExpansion: false
+allowVolumeExpansion: true
 volumeBindingMode: WaitForFirstConsumer
 reclaimPolicy: Delete
 mountOptions:

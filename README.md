@@ -9,6 +9,7 @@ A [Container Storage Interface](https://github.com/container-storage-interface/s
 - Filesystem formatting (ext4, xfs) and mounting
 - Idempotent create/delete/attach/detach operations
 - Topology-aware provisioning (region)
+- Volume expansion, online while the pod keeps running
 
 ## Limitations
 
@@ -94,6 +95,16 @@ spec:
         claimName: my-data
 ```
 
+### Expanding a volume
+
+StorageClasses with `allowVolumeExpansion: true` (as in `example-storageclass.yaml`) let you grow a PVC by raising its storage request:
+
+```bash
+kubectl patch pvc my-data -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}}}}'
+```
+
+The volume and its filesystem grow while the pod keeps running. Volumes can only grow, not shrink. Installations from before this feature need the `csi-resizer` container and its RBAC rules from `deploy/kubernetes/controller.yaml`, and `allowVolumeExpansion: true` on their StorageClasses (the field can be changed on an existing StorageClass).
+
 ## Configuration
 
 ### StorageClass Parameters
@@ -140,6 +151,21 @@ Docker:
 ```bash
 docker build -t epilayer-csi .
 ```
+
+## Testing
+
+```bash
+go test ./...
+```
+
+`test/e2e/expand.sh` checks online volume expansion against a running cluster with the driver installed. It creates a PVC and a pod that keeps writing to it in a temporary namespace, grows the PVC, waits until both the PVC capacity and the filesystem inside the pod reach the new size, and deletes the namespace again:
+
+```bash
+test/e2e/expand.sh <kubeconfig> <storageclass> [initial-size] [new-size]
+test/e2e/expand.sh ~/.kube/config epilayer-ssd 1Gi 2Gi
+```
+
+`TIMEOUT` (seconds, default 300) bounds each wait. The machine running the script needs `kubectl` and `numfmt` (GNU coreutils).
 
 ## License
 
