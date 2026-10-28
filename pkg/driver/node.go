@@ -239,6 +239,18 @@ func (d *Driver) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolume
 	}
 
 	devicePath := GetDevicePath(vol.Name)
+
+	// ControllerExpandVolume can return before the guest sees the grown
+	// device, and resize2fs would then succeed against the old size.
+	requiredBytes := requiredDeviceBytes(req.CapacityRange, vol.Size)
+	deviceBytes, err := BlockDeviceSize(devicePath)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "getting size of %s: %v", devicePath, err)
+	}
+	if deviceBytes < requiredBytes {
+		return nil, status.Errorf(codes.Unavailable, "device %s is %d bytes, waiting for %d bytes", devicePath, deviceBytes, requiredBytes)
+	}
+
 	mounter := NewMounter()
 	if _, err := mounter.ResizeFS(devicePath, req.VolumePath); err != nil {
 		return nil, status.Errorf(codes.Internal, "resizing filesystem on %s: %v", devicePath, err)
@@ -249,6 +261,16 @@ func (d *Driver) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolume
 	return &csi.NodeExpandVolumeResponse{
 		CapacityBytes: int64(vol.Size) * giB,
 	}, nil
+}
+
+// requiredDeviceBytes returns the size the block device must have before the
+// filesystem can be grown: the requested capacity, or the volume size if the
+// request carries none.
+func requiredDeviceBytes(capacityRange *csi.CapacityRange, volumeSizeGiB int) int64 {
+	if requiredBytes := capacityRange.GetRequiredBytes(); requiredBytes > 0 {
+		return requiredBytes
+	}
+	return int64(volumeSizeGiB) * giB
 }
 
 func (d *Driver) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {

@@ -5,7 +5,9 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"unsafe"
 
+	"golang.org/x/sys/unix"
 	"k8s.io/klog/v2"
 	"k8s.io/mount-utils"
 	utilexec "k8s.io/utils/exec"
@@ -111,6 +113,21 @@ func GetDevicePath(volumeName string) string {
 func IsDeviceReady(devicePath string) bool {
 	_, err := os.Stat(devicePath)
 	return err == nil
+}
+
+// BlockDeviceSize returns the size of the block device in bytes (BLKGETSIZE64).
+func BlockDeviceSize(devicePath string) (int64, error) {
+	f, err := os.Open(devicePath)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = f.Close() }()
+
+	var size uint64
+	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, f.Fd(), unix.BLKGETSIZE64, uintptr(unsafe.Pointer(&size))); errno != 0 {
+		return 0, fmt.Errorf("ioctl BLKGETSIZE64 on %s: %w", devicePath, errno)
+	}
+	return int64(size), nil
 }
 
 // ResizeFS resizes the filesystem on the device to fill the available space.
